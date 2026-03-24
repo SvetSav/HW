@@ -1,46 +1,48 @@
-from django.core.paginator import Paginator
-from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse_lazy
+from django.views.generic import CreateView, DetailView, ListView, TemplateView
 
 from .forms import ProductForm
 from .models import Contact, Product
 
 
-def home(request):
-    """Главная страница с каталогом"""
-    product_list = Product.objects.all()
-    paginator = Paginator(product_list, 6)  # по 6 товаров на странице
-    page_number = request.GET.get("page")
-    page_obj = paginator.get_page(page_number)
-    return render(request, "catalog/home.html", {"page_obj": page_obj})
+class HomeView(ListView):
+    model = Product
+    template_name = "catalog/home.html"
+    context_object_name = "page_obj"  # чтобы в шаблоне осталось page_obj
+    paginate_by = 3
+
+    def get_queryset(self):
+        # Сортировка по дате создания (последние сверху)
+        return Product.objects.all().order_by("-created_at")
 
 
-def contacts(request):
-    """Страница контактов с формой обратной связи"""
-    contacts = Contact.objects.all()  # получаем все контакты из БД
+class ProductDetailView(DetailView):
+    model = Product
+    template_name = "catalog/product_detail.html"
+    context_object_name = "product"
 
-    if request.method == "POST":
+
+class ContactsView(TemplateView):
+    template_name = "catalog/contacts.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["contacts"] = Contact.objects.all()
+        return context
+
+    def post(self, request, *args, **kwargs):
+        # Обработка формы обратной связи
         name = request.POST.get("name")
         phone = request.POST.get("phone")
         message = request.POST.get("message")
         print(f"Новое сообщение от {name} ({phone}): {message}")
-        context = {"success": True, "contacts": contacts}
-    else:
-        context = {"contacts": contacts}
-
-    return render(request, "catalog/contacts.html", context)
+        context = self.get_context_data()
+        context["success"] = True
+        return self.render_to_response(context)
 
 
-def product_detail(request, pk):
-    product = get_object_or_404(Product, pk=pk)
-    return render(request, "catalog/product_detail.html", {"product": product})
-
-
-def add_product(request):
-    if request.method == "POST":
-        form = ProductForm(request.POST, request.FILES)
-        if form.is_valid():
-            form.save()
-            return redirect("home")
-    else:
-        form = ProductForm()
-    return render(request, "catalog/add_product.html", {"form": form})
+class ProductCreateView(CreateView):
+    model = Product
+    form_class = ProductForm
+    template_name = "catalog/add_product.html"
+    success_url = reverse_lazy("home")
