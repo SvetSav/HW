@@ -1,0 +1,23 @@
+{% extends 'catalog/base.html' %}
+
+{% block content %}
+<div class="container">
+    <div class="row">
+        <div class="col-md-6">
+            {% if product.image %}
+                <img src="{{ product.image.url }}" class="img-fluid" alt="{{ product.name }}">
+            {% else %}
+                <div class="bg-light text-center" style="height: 300px; line-height: 300px;">Нет изображения</div>
+            {% endif %}
+        </div>
+        <div class="col-md-6">
+            <h1>{{ product.name }}</h1>
+            <p class="text-muted">Категория: {{ product.category.name }}</p>
+            <p>{{ product.description }}</p>
+            <h3>{{ product.price }} ₽</h3>
+            <button class="btn btn-primary">Купить</button>
+            <a href="{% url 'home' %}" class="btn btn-outline-secondary">Назад</a>
+        </div>
+    </div>
+</div>
+{% endblock %}
