@@ -9,47 +9,69 @@
 <div class="container">
     <div class="row text-center">
         {% for product in page_obj %}
-        <div class="col-3 mb-4">
+        <div class="col-4 mb-4">
             <div class="card mb-4 box-shadow h-100">
                 <div class="card-header">
                     <h4 class="my-0 font-weight-normal">{{ product.name }}</h4>
                 </div>
-                <div class="card-body">
+                <div class="card-body d-flex flex-column">
                     {% if product.image %}
-                        <img src="{{ product.image.url }}" class="card-img-top" alt="{{ product.name }}" style="max-height: 150px; object-fit: cover;">
+                        <img src="{{ product.image.url }}" class="card-img-top mb-2" alt="{{ product.name }}" style="max-height: 150px; object-fit: cover;">
                     {% else %}
-                        <div class="bg-light text-center" style="height: 150px; line-height: 150px;">Нет изображения</div>
+                        <div class="bg-light text-center mb-2" style="height: 150px; line-height: 150px;">Нет изображения</div>
                     {% endif %}
                     <p class="card-text mt-2">{{ product.description|truncatechars:100 }}</p>
                     <h1 class="card-title pricing-card-title">{{ product.price }} ₽</h1>
-                    <a href="{% url 'product_detail' product.pk %}" class="btn btn-lg btn-block btn-outline-primary">Подробнее</a>
+                    <div class="mt-auto">
+                        <a href="{% url 'product_detail' product.pk %}" class="btn btn-lg btn-block btn-outline-primary mb-2">Подробнее</a>
+                        {% if user.is_authenticated %}
+                        <a href="{% url 'product_update' product.pk %}" class="btn btn-sm btn-warning mb-1">Редактировать</a>
+                        <a href="{% url 'product_delete' product.pk %}" class="btn btn-sm btn-danger mb-1">Удалить</a>
+                        {% endif %}
+                    </div>
                 </div>
             </div>
         </div>
         {% empty %}
-            <p>Товары пока не добавлены.</p>
+            <div class="col-12">
+                <p class="text-center">Товары пока не добавлены.</p>
+            </div>
         {% endfor %}
     </div>
 
-    <!-- Пагинация (если реализована) -->
+    <!-- Пагинация -->
     {% if page_obj.has_other_pages %}
     <nav aria-label="Page navigation">
         <ul class="pagination justify-content-center">
             {% if page_obj.has_previous %}
                 <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}">Предыдущая</a></li>
+            {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link">Предыдущая</span>
+                </li>
             {% endif %}
+
             {% for num in page_obj.paginator.page_range %}
                 {% if page_obj.number == num %}
                     <li class="page-item active"><span class="page-link">{{ num }}</span></li>
-                {% else %}
+                {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
                     <li class="page-item"><a class="page-link" href="?page={{ num }}">{{ num }}</a></li>
                 {% endif %}
             {% endfor %}
             {% if page_obj.has_next %}
                 <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}">Следующая</a></li>
+            {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link">Следующая</span>
+                </li>
             {% endif %}
         </ul>
     </nav>
     {% endif %}
+
+    <!-- Кнопка добавления товара -->
+    <div class="text-center my-4">
+        <a href="{% url 'add_product' %}" class="btn btn-success">Добавить товар</a>
+    </div>
 </div>
 {% endblock %}

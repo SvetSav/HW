@@ -2,7 +2,7 @@
 
 {% block content %}
 <div class="container">
-    <h2>Добавить товар</h2>
+    <h2>{% if object %}Редактировать товар{% else %}Добавить товар{% endif %}</h2>
     <form method="post" enctype="multipart/form-data">
         {% csrf_token %}
         {{ form.as_p }}
