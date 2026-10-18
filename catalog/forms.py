@@ -1,6 +1,6 @@
 from django import forms
 
-from .models import Category, Product
+from .models import Product
 
 FORBIDDEN_WORDS = [
     "казино",
@@ -55,7 +55,7 @@ class ProductForm(forms.ModelForm):
         price = self.cleaned_data.get("price")
         if price is None:
             return price
-        if price < 0:
+        if price <= 0:
             raise forms.ValidationError("Цена не может быть отрицательной.")
         return price
 
