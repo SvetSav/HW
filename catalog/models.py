@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import models
 
 
@@ -33,6 +34,26 @@ class Product(models.Model):
     class Meta:
         verbose_name = "продукт"
         verbose_name_plural = "продукты"
+
+    def __str__(self):
+        return self.name
+
+    is_published = models.BooleanField(default=False, verbose_name="опубликован")
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="products",
+        verbose_name="владелец",
+    )
+
+    class Meta:
+        verbose_name = "продукт"
+        verbose_name_plural = "продукты"
+        permissions = [
+            ("can_unpublish_product", "Может отменять публикацию продукта"),
+        ]
 
     def __str__(self):
         return self.name

@@ -29,6 +29,6 @@ class CustomUserAdmin(UserAdmin):
         ("Важные даты", {"fields": ("last_login", "date_joined")}),
     )
     add_fieldsets = (
-        (None, {'classes': ('wide',), 'fields': ('email', 'password1', 'password2')}),
+        (None, {"classes": ("wide",), "fields": ("email", "password1", "password2")}),
     )
-    search_fields = ('email',)
+    search_fields = ("email",)

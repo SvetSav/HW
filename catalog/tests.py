@@ -4,6 +4,8 @@ import tempfile
 from io import BytesIO
 
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group, Permission
+from django.contrib.contenttypes.models import ContentType
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.urls import reverse
@@ -35,6 +37,9 @@ def create_large_image():
     return SimpleUploadedFile("large.png", buf.getvalue(), content_type="image/png")
 
 
+# ---------------------------------------------------------------------------
+# 1. Валидация формы ProductForm
+# ---------------------------------------------------------------------------
 @override_settings(MEDIA_ROOT=TEMP_MEDIA_ROOT)
 class ProductFormValidationTests(TestCase):
     def setUp(self):
@@ -132,6 +137,9 @@ class ProductFormValidationTests(TestCase):
         self.assertTrue(form.is_valid(), form.errors)
 
 
+# ---------------------------------------------------------------------------
+# 2. CRUD продуктов: доступ и работа под авторизацией
+# ---------------------------------------------------------------------------
 @override_settings(MEDIA_ROOT=TEMP_MEDIA_ROOT)
 class ProductCRUDTests(TestCase):
     def setUp(self):
@@ -140,11 +148,15 @@ class ProductCRUDTests(TestCase):
             email="test@example.com",
             password="testpass123",
         )
+        # ВАЖНО: продукт создаём опубликованным и с владельцем,
+        # чтобы он был виден на главной и проверки owner работали корректно.
         self.product = Product.objects.create(
             name="Смартфон",
             description="Мощный",
             category=self.category,
             price=50000,
+            owner=self.user,
+            is_published=True,
         )
 
     @classmethod
@@ -194,7 +206,10 @@ class ProductCRUDTests(TestCase):
             },
         )
         self.assertEqual(response.status_code, 302)
-        self.assertTrue(Product.objects.filter(name="Планшет").exists())
+        new = Product.objects.get(name="Планшет")
+        self.assertTrue(new)
+        self.assertEqual(new.owner, self.user)
+        self.assertFalse(new.is_published)
 
     def test_authenticated_read(self):
         self._login()
@@ -223,3 +238,135 @@ class ProductCRUDTests(TestCase):
         response = self.client.post(reverse("product_delete", args=[self.product.pk]))
         self.assertEqual(response.status_code, 302)
         self.assertFalse(Product.objects.filter(pk=self.product.pk).exists())
+
+
+# ---------------------------------------------------------------------------
+# 3. Модерация: права группы «Модератор продуктов» + права владельца
+# ---------------------------------------------------------------------------
+@override_settings(MEDIA_ROOT=TEMP_MEDIA_ROOT)
+class ModerationTests(TestCase):
+    def setUp(self):
+        self.category = Category.objects.create(name="Электроника", description="")
+
+        self.owner = User.objects.create_user(
+            email="owner@test.ru", password="testpass123"
+        )
+        self.other = User.objects.create_user(
+            email="other@test.ru", password="testpass123"
+        )
+        self.moder = User.objects.create_user(
+            email="moder@test.ru", password="testpass123"
+        )
+
+        # Готовим права модератора (не полагаемся на create_groups в тестах!)
+        product_ct = ContentType.objects.get_for_model(Product)
+        unpublish_perm, _ = Permission.objects.get_or_create(
+            codename="can_unpublish_product",
+            content_type=product_ct,
+            defaults={"name": "Может отменять публикацию продукта"},
+        )
+        delete_perm = Permission.objects.get(
+            codename="delete_product", content_type=product_ct
+        )
+        mod_group, _ = Group.objects.get_or_create(name="Модератор продуктов")
+        mod_group.permissions.set([unpublish_perm, delete_perm])
+        self.moder.groups.add(mod_group)
+
+        # Продукт, созданный владельцем, изначально не опубликован
+        self.product = Product.objects.create(
+            name="Товар",
+            description="Описание",
+            category=self.category,
+            price=100,
+            owner=self.owner,
+            is_published=False,
+        )
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        shutil.rmtree(TEMP_MEDIA_ROOT, ignore_errors=True)
+
+    # ---- Автопривязка owner при создании ----
+    def test_owner_assigned_automatically(self):
+        self.client.login(email="owner@test.ru", password="testpass123")
+        self.client.post(
+            reverse("add_product"),
+            {
+                "name": "Новый",
+                "description": "Описание",
+                "category": self.category.id,
+                "price": "50",
+            },
+        )
+        new = Product.objects.get(name="Новый")
+        self.assertEqual(new.owner, self.owner)
+        self.assertFalse(new.is_published)
+
+    # ---- Неопубликованный продукт не виден на главной ----
+    def test_unpublished_not_on_home(self):
+        response = self.client.get(reverse("home"))
+        self.assertNotContains(response, "Товар")
+
+    # ---- Чужой пользователь не может редактировать/удалять ----
+    def test_other_user_cannot_edit(self):
+        self.client.login(email="other@test.ru", password="testpass123")
+        response = self.client.get(reverse("product_update", args=[self.product.pk]))
+        self.assertEqual(response.status_code, 403)
+
+    def test_other_user_cannot_delete(self):
+        self.client.login(email="other@test.ru", password="testpass123")
+        response = self.client.post(reverse("product_delete", args=[self.product.pk]))
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(Product.objects.filter(pk=self.product.pk).exists())
+
+    def test_other_user_cannot_unpublish(self):
+        self.client.login(email="other@test.ru", password="testpass123")
+        response = self.client.post(
+            reverse("product_toggle_publish", args=[self.product.pk])
+        )
+        self.assertEqual(response.status_code, 403)
+
+    # ---- Владелец может редактировать свой продукт ----
+    def test_owner_can_edit(self):
+        self.client.login(email="owner@test.ru", password="testpass123")
+        response = self.client.get(reverse("product_update", args=[self.product.pk]))
+        self.assertEqual(response.status_code, 200)
+
+    # ---- Модератор может удалять ----
+    def test_moderator_can_delete(self):
+        self.client.login(email="moder@test.ru", password="testpass123")
+        response = self.client.post(reverse("product_delete", args=[self.product.pk]))
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(Product.objects.filter(pk=self.product.pk).exists())
+
+    # ---- Модератор может отменить публикацию ----
+    def test_moderator_can_unpublish(self):
+        self.product.is_published = True
+        self.product.save()
+
+        self.client.login(email="moder@test.ru", password="testpass123")
+        response = self.client.post(
+            reverse("product_toggle_publish", args=[self.product.pk])
+        )
+        self.assertEqual(response.status_code, 302)
+
+        self.product.refresh_from_db()
+        self.assertFalse(self.product.is_published)
+
+    # ---- Модератор может редактировать чужой продукт ----
+    def test_moderator_can_edit_others(self):
+        self.client.login(email="moder@test.ru", password="testpass123")
+        response = self.client.get(reverse("product_update", args=[self.product.pk]))
+        self.assertEqual(response.status_code, 200)
+
+    # ---- Владелец не может отменить публикацию ----
+    def test_owner_cannot_unpublish(self):
+        self.product.is_published = True
+        self.product.save()
+
+        self.client.login(email="owner@test.ru", password="testpass123")
+        response = self.client.post(
+            reverse("product_toggle_publish", args=[self.product.pk])
+        )
+        self.assertEqual(response.status_code, 403)
