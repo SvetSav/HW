@@ -22,4 +22,9 @@ urlpatterns = [
         views.ProductTogglePublishView.as_view(),
         name="product_toggle_publish",
     ),
+    path(
+        "category/<int:pk>/products/",
+        views.CategoryProductsView.as_view(),
+        name="category_products",
+    ),
 ]

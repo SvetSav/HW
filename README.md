@@ -59,13 +59,21 @@ GRANT ALL PRIVILEGES ON DATABASE skystore_db TO skystore_user
 
 python manage.py migrate
 
-8. Создайте суперпользователя - python manage.py createsuperuser
+8. Создайте системные группы и права:
 
-9. Запустите сервер разработки:
+python manage.py create_groups
+
+Команда создаёт группы «Модератор продуктов» и «Контент-менеджер»
+с необходимыми разрешениями. Без неё модераторы не смогут
+публиковать/отменять публикацию продуктов
+
+9. Создайте суперпользователя - python manage.py createsuperuser.
+
+10. Запустите сервер разработки:
 
 python manage.py runserver
 
-10. Откройте приложение в браузере:
+11. Откройте приложение в браузере:
 
 Главная страница: http://127.0.0.1:8000/
 
@@ -105,6 +113,17 @@ python manage.py runserver
 Кастомные команды:
 Загрузка тестовых данных - python manage.py load_test_data
 Команда удаляет все существующие данные и загружает новые из фикстур (categories.json и products.json).
+
+Группы «Модератор продуктов» и «Контент-менеджер» создаются автоматически через data migration при 
+`python manage.py migrate`. Команда `create_groups` остаётся как ручной инструмент для существующих баз.
+
+### Запуск Redis (обязательно для кеширования)
+
+Запустите Redis - Docker:
+
+  docker run -d --name skystore-redis -p 6379:6379 redis:7-alpine
+
+REDIS_URL=redis://127.0.0.1:6379/1
 
 ### Примечания
 

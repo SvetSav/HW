@@ -144,3 +144,22 @@ MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 ADMIN_EMAIL = "your_email@example.com"
 DEFAULT_FROM_EMAIL = "noreply@example.com"
+
+REDIS_URL = os.environ.get("REDIS_URL", "redis://127.0.0.1:6379/1")
+
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": "redis://127.0.0.1:6379/1",
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+            "IGNORE_EXCEPTIONS": True,  # не будет падать, если Redis недоступен
+        },
+        "KEY_PREFIX": "skystore",
+        "TIMEOUT": 300,  # TTL по умолчанию — 5 минут
+    }
+}
+
+# Опционально: сессии тоже в Redis
+SESSION_ENGINE = "django.contrib.sessions.backends.cache"
+SESSION_CACHE_ALIAS = "default"

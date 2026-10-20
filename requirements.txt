@@ -20,3 +20,4 @@ stack-data==0.6.3
 traitlets==5.14.3
 tzdata==2025.3
 wcwidth==0.6.0
+django-redis>=5.4

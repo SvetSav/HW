@@ -1,6 +1,8 @@
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import cache_page
 from django.views.generic import (
     CreateView,
     DeleteView,
@@ -12,7 +14,15 @@ from django.views.generic import (
 )
 
 from .forms import ProductForm
-from .models import Contact, Product
+from .models import Category, Contact, Product
+from .services import get_products_by_category
+
+
+@method_decorator(cache_page(60 * 15), name="dispatch")  # 15 минут
+class ProductDetailView(LoginRequiredMixin, DetailView):
+    model = Product
+    template_name = "catalog/product_detail.html"
+    context_object_name = "product"
 
 
 class HomeView(ListView):
@@ -20,10 +30,6 @@ class HomeView(ListView):
     template_name = "catalog/home.html"
     context_object_name = "products"
     paginate_by = 3
-
-    def get_queryset(self):
-        # Сортировка по дате создания (последние сверху)
-        return Product.objects.all().order_by("-created_at")
 
     def get_queryset(self):
         # На главной показываем только опубликованные продукты
@@ -112,3 +118,19 @@ class ProductTogglePublishView(LoginRequiredMixin, UserPassesTestMixin, View):
         product.is_published = not product.is_published
         product.save()
         return redirect("product_detail", pk=pk)
+
+
+class CategoryProductsView(ListView):
+    template_name = "catalog/category_products.html"
+    context_object_name = "products"
+    paginate_by = 12  # по желанию
+
+    def get_queryset(self):
+        category = get_object_or_404(Category, pk=self.kwargs["pk"])
+        # Сервис уже кеширует результат по ключу category_{id}
+        return get_products_by_category(category.id)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["category"] = get_object_or_404(Category, pk=self.kwargs["pk"])
+        return context
