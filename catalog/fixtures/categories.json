@@ -1,0 +1,1 @@
+[{"model": "catalog.category", "pk": 1, "fields": {"name": "Electronics", "description": "Gadgets and devices"}}, {"model": "catalog.category", "pk": 2, "fields": {"name": "Books", "description": "Printed publications"}}]
